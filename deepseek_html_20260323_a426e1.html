@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Calculadora ROI – VPo</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  
+  <style>
+    body { font-family: Inter, sans-serif; }
+    .mono { font-family: "IBM Plex Mono", monospace; }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background-color: white;
+      padding: 2rem;
+      border-radius: 1rem;
+      max-width: 400px;
+      width: 90%;
+    }
+    .modal-active { display: flex; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <!-- Modal -->
+  <div id="modal-overlay" class="modal-overlay">
+    <div class="modal-content">
+      <h3 class="text-lg font-semibold mb-4">Gerar Relatório</h3>
+      <p class="text-sm text-gray-600 mb-4">Nome da Empresa:</p>
+      <input type="text" id="empresa-nome" placeholder="Ex: Transportadora ABC Ltda" class="w-full border border-gray-300 rounded-md px-3 py-2 mb-4" />
+      <div class="flex gap-3">
+        <button id="cancelar-pdf" class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-md font-medium">Cancelar</button>
+        <button id="confirmar-pdf" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-md font-medium">Gerar PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-6 py-10">
+    <div class="flex flex-col lg:flex-row justify-between lg:items-start gap-6 mb-10">
+      <div>
+        <h1 class="text-3xl lg:text-4xl font-bold mb-2">Calculadora de ROI – VPo</h1>
+        <p class="text-gray-500 text-sm lg:max-w-xl">Descubra quanto você economiza ao separar o Vale‑Pedágio Obrigatório do valor do frete</p>
+      </div>
+      <div class="flex-shrink-0 hidden lg:flex items-center gap-6">
+        <img id="logo1" src="https://d2xsxph8kpxj0f.cloudfront.net/310419663030966928/nhqvg9WrMepTYMsXH3YyvU/Capturadetela2026-03-19084307_0d5c6ba3.png" class="h-12 object-contain" />
+        <div class="w-px h-8 bg-gray-300"></div>
+        <img id="logo2" src="https://d2xsxph8kpxj0f.cloudfront.net/310419663030966928/nhqvg9WrMepTYMsXH3YyvU/images_5f0eb7fd.png" class="h-10 object-contain" />
+      </div>
+    </div>
+
+    <!-- Inputs -->
+    <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-8">
+      <h2 class="text-lg font-semibold mb-6">Informações da Operação</h2>
+      <div class="grid md:grid-cols-3 gap-6 text-sm">
+        <div><label class="block mb-2 font-medium">Valor Mensal Movimentado em Frete (R$)</label><input id="input-frete" type="text" value="950.000,00" class="w-full border rounded-md px-3 py-2" /></div>
+        <div><label class="block mb-2 font-medium">Percentual de Pedágio (%)</label><input id="input-pedagio" type="number" step="0.1" value="8" class="w-full border rounded-md px-3 py-2" /></div>
+        <div><label class="block mb-2 font-medium">Alíquota de ICMS (%)</label><input id="input-icms" type="number" step="0.1" value="12" class="w-full border rounded-md px-3 py-2" /></div>
+      </div>
+    </div>
+
+    <!-- Cenários -->
+    <div class="grid md:grid-cols-2 gap-6 mb-8">
+      <div class="bg-white border rounded-xl p-6 shadow-sm">
+        <div class="flex items-center gap-2 mb-4"><div class="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="w-4 h-4 text-red-600"><path d="M12 1v22"></path><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"></path></svg></div><h3 class="text-base font-semibold">Cenário Atual</h3></div>
+        <div class="space-y-3 text-sm"><div class="flex justify-between border-b pb-2"><span>Valor Total</span><span id="valor-total" class="mono font-bold"></span></div><div class="flex justify-between border-b pb-2"><span>Pedágio</span><span id="valor-pedagio" class="mono font-bold"></span></div><div class="flex justify-between border-b pb-2"><span>Frete Real</span><span id="valor-frete-real" class="mono font-bold"></span></div></div>
+        <div class="bg-red-50 rounded-lg p-4 mt-4"><div class="flex justify-between"><span class="text-red-700">ICMS Pago</span><span id="icms-atual" class="mono font-bold text-red-600"></span></div></div>
+      </div>
+      <div class="bg-white border rounded-xl p-6 shadow-sm">
+        <div class="flex items-center gap-2 mb-4"><div class="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="w-4 h-4 text-emerald-600"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg></div><h3 class="text-base font-semibold">Cenário Correto (VPo)</h3></div>
+        <div class="space-y-3 text-sm"><div class="flex justify-between border-b pb-2"><span>Frete no CT‑e</span><span id="frete-cte" class="mono font-bold"></span></div><div class="flex justify-between border-b pb-2"><span>VPo separado</span><span id="vpo-separado" class="mono font-bold"></span></div></div>
+        <div class="bg-emerald-50 rounded-lg p-4 mt-4"><div class="flex justify-between"><span class="text-emerald-700">ICMS Correto</span><span id="icms-correto" class="mono font-bold text-emerald-600"></span></div></div>
+      </div>
+    </div>
+
+    <!-- Economia -->
+    <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-6 text-center mb-8">
+      <h2 class="font-semibold text-xl mb-2">Sua Economia com VPo</h2>
+      <div class="grid md:grid-cols-3 gap-6 mt-4"><div class="bg-white rounded-lg p-4"><p class="text-emerald-700 text-sm">Economia Mensal</p><p id="economia-mensal" class="mono text-2xl font-bold text-emerald-600"></p></div><div class="bg-white rounded-lg p-4"><p class="text-emerald-700 text-sm">Economia Anual</p><p id="economia-anual" class="mono text-2xl font-bold text-emerald-600"></p></div><div class="bg-white rounded-lg p-4"><p class="text-emerald-700 text-sm">Redução ICMS</p><p id="economia-percentual" class="mono text-2xl font-bold text-emerald-600"></p></div></div>
+    </div>
+
+    <!-- Simulador -->
+    <div class="bg-white border border-gray-200 rounded-xl p-6 shadow-sm mb-8 max-w-lg">
+      <div class="flex items-center gap-2 mb-4"><div class="w-7 h-7 rounded-lg bg-blue-50"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="w-4 h-4 text-blue-600"><path d="M13 10L17 2 6 14h5l-1 8 7-12h-4z"/></svg></div><h3 class="text-base font-semibold">Simulador de Taxa de VPO</h3></div>
+      <div class="space-y-4 mb-6"><div><label class="block text-sm font-medium mb-2">Valor do Frete (R$)</label><input id="sim-frete" type="text" value="950.000,00" class="w-full border rounded-md px-3 py-2" /></div><div><label class="block text-sm font-medium mb-2">Taxa de VPO (%)</label><input id="sim-taxa" type="number" step="0.1" value="0.5" class="w-full border rounded-md px-3 py-2" /></div></div>
+      <div class="bg-blue-50 rounded-lg p-6 text-center"><p class="text-blue-600 text-sm">Valor da Taxa a Cobrar</p><p id="sim-valor" class="mono text-3xl font-bold text-blue-600"></p></div>
+      <div class="mt-4 text-center"><p class="text-blue-800 font-medium">Valor Anual</p><p id="sim-anual" class="mono text-2xl font-bold text-blue-700"></p></div>
+      <button id="btn-relatorio" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 mt-6"><svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" class="w-5 h-5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Baixar Relatório em PDF</button>
+    </div>
+
+    <div class="flex flex-col items-center gap-4 pt-8 border-t"><div class="flex gap-6 items-center"><img src="https://d2xsxph8kpxj0f.cloudfront.net/310419663030966928/nhqvg9WrMepTYMsXH3YyvU/Capturadetela2026-03-19084307_0d5c6ba3.png" class="h-12 object-contain" /><img src="https://d2xsxph8kpxj0f.cloudfront.net/310419663030966928/nhqvg9WrMepTYMsXH3YyvU/images_5f0eb7fd.png" class="h-12 object-contain" /></div></div>
+  </div>
+
+  <script>
+    function formatBRL(v) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+    function parseBRLtoFloat(v) {
+      if (typeof v !== 'string') return parseFloat(v) || 0;
+      return parseFloat(v.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.')) || 0;
+    }
+
+    function updateCalculations() {
+      const total = parseBRLtoFloat(document.getElementById('input-frete').value);
+      const pedPerc = parseFloat(document.getElementById('input-pedagio').value) || 0;
+      const icmsPerc = parseFloat(document.getElementById('input-icms').value) || 0;
+      const pedValor = total * (pedPerc / 100);
+      const freteReal = total - pedValor;
+      const icmsAtual = total * (icmsPerc / 100);
+      const icmsCorreto = freteReal * (icmsPerc / 100);
+      const ecoMensal = icmsAtual - icmsCorreto;
+      const ecoAnual = ecoMensal * 12;
+      document.getElementById('valor-total').textContent = formatBRL(total);
+      document.getElementById('valor-pedagio').textContent = formatBRL(pedValor);
+      document.getElementById('valor-frete-real').textContent = formatBRL(freteReal);
+      document.getElementById('icms-atual').textContent = formatBRL(icmsAtual);
+      document.getElementById('frete-cte').textContent = formatBRL(freteReal);
+      document.getElementById('vpo-separado').textContent = formatBRL(pedValor);
+      document.getElementById('icms-correto').textContent = formatBRL(icmsCorreto);
+      document.getElementById('economia-mensal').textContent = formatBRL(ecoMensal);
+      document.getElementById('economia-anual').textContent = formatBRL(ecoAnual);
+      document.getElementById('economia-percentual').textContent = ((ecoMensal/icmsAtual)*100).toFixed(2) + '%';
+      const simFrete = parseBRLtoFloat(document.getElementById('sim-frete').value);
+      let simTaxa = document.getElementById('sim-taxa').value.replace(',', '.');
+      const taxaPercent = parseFloat(simTaxa) || 0;
+      const taxaValor = simFrete * (taxaPercent / 100);
+      document.getElementById('sim-valor').textContent = formatBRL(taxaValor);
+      document.getElementById('sim-anual').textContent = formatBRL(taxaValor * 12);
+    }
+
+    function setupCurrencyInput(id) {
+      const input = document.getElementById(id);
+      input.addEventListener('input', function() {
+        let digits = this.value.replace(/\D/g, '');
+        if (!digits) { this.value = ''; return; }
+        this.value = (parseInt(digits) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+        updateCalculations();
+      });
+    }
+
+    async function gerarPDFComLogos(empresaNome) {
+      const total = parseBRLtoFloat(document.getElementById('input-frete').value);
+      const pedPerc = parseFloat(document.getElementById('input-pedagio').value) || 0;
+      const icmsPerc = parseFloat(document.getElementById('input-icms').value) || 0;
+      const pedValor = total * (pedPerc / 100);
+      const freteReal = total - pedValor;
+      const icmsAtual = total * (icmsPerc / 100);
+      const icmsCorreto = freteReal * (icmsPerc / 100);
+      const ecoMensal = icmsAtual - icmsCorreto;
+      const ecoAnual = ecoMensal * 12;
+      const simFrete = parseBRLtoFloat(document.getElementById('sim-frete').value);
+      let simTaxa = document.getElementById('sim-taxa').value.replace(',', '.');
+      const taxaPercent = parseFloat(simTaxa) || 0;
+      const taxaValor = simFrete * (taxaPercent / 100);
+      const taxaAnual = taxaValor * 12;
+
+      const pdfContent = document.createElement('div');
+      pdfContent.style.width = '750px';
+      pdfContent.style.backgroundColor = 'white';
+      pdfContent.style.fontFamily = 'Inter, sans-serif';
+      pdfContent.style.padding = '30px';
+      pdfContent.innerHTML = `
+        <!-- CABEÇALHO COM LOGOS -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #059669; padding-bottom: 20px;">
+          <div style="display: flex; gap: 20px;">
+            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310419663030966928/nhqvg9WrMepTYMsXH3YyvU/Capturadetela2026-03-19084307_0d5c6ba3.png" style="height: 50px;" crossorigin="anonymous" />
+            <img src="https://d2xsxph8kpxj0f.cloudfront.net/310419663030966928/nhqvg9WrMepTYMsXH3YyvU/images_5f0eb7fd.png" style="height: 45px;" crossorigin="anonymous" />
+          </div>
+          <div style="text-align: right;"><p style="font-size: 11px; color: #666;">${new Date().toLocaleDateString('pt-BR')}</p></div>
+        </div>
+
+        <h1 style="font-size: 28px; font-weight: bold; color: #059669; text-align: center; margin: 0 0 5px;">RELATÓRIO DE ECONOMIA FISCAL</h1>
+        <p style="text-align: center; font-size: 18px; font-weight: 500; margin: 0 0 5px;">Vale-Pedágio Obrigatório (VPo)</p>
+        <p style="text-align: center; font-size: 14px; color: #059669; font-weight: bold; margin: 0 0 30px;">${empresaNome}</p>
+
+        <p style="margin-bottom: 15px; line-height: 1.5; font-size: 12px;">Quando uma empresa inclui o pedágio dentro do valor do frete no CT-e (prática irregular) e passa a utilizar corretamente o Vale-Pedágio Obrigatório (VPO), o impacto financeiro costuma ser significativo. Isso ocorre porque o pedágio deixa de ser pago pela transportadora e passa a ser 100% responsabilidade do embarcador, conforme a Lei 10.209.</p>
+        <p style="margin-bottom: 10px; font-size: 12px;">A economia depende de três fatores principais:</p>
+        <ul style="margin-bottom: 25px; margin-left: 20px; font-size: 12px;"><li>• Distância média das viagens</li><li>• Quantidade de praças de pedágio na rota</li><li>• Volume de viagens mensais</li></ul>
+
+        <h2 style="font-size: 16px; color: #059669; margin: 20px 0 10px;">Percentual médio de pedágio por tipo de operação</h2>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;"><tr style="background: #f3f4f6;"><th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Tipo de operação</th><th style="border: 1px solid #ddd; padding: 8px; text-align: left;">% do frete</th>  </tr>
+          <tr><td style="border: 1px solid #ddd; padding: 6px;">Rotas curtas</td><td style="border: 1px solid #ddd; padding: 6px;">3% – 5%</td></tr>
+          <tr><td style="border: 1px solid #ddd; padding: 6px;">Rotas médias</td><td style="border: 1px solid #ddd; padding: 6px;">5% – 8%</td></tr>
+          <tr><td style="border: 1px solid #ddd; padding: 6px;">Rotas longas</td><td style="border: 1px solid #ddd; padding: 6px;">8% – 15%</td></tr>
+        </table>
+
+        <h2 style="font-size: 16px; color: #dc2626; margin: 20px 0 10px;">Cenário atual (pedágio embutido no frete)</h2>
+        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+          <p style="margin: 5px 0;"><strong>Valor mensal movimentado:</strong> ${formatBRL(total)}</p>
+          <p style="margin: 5px 0;"><strong>Estimativa de pedágio (${pedPerc}%):</strong> ${formatBRL(pedValor)}</p>
+          <p style="margin: 5px 0;"><strong>Frete real:</strong> ${formatBRL(freteReal)}</p>
+          <p style="margin: 10px 0 5px;">Considerando ICMS de ${icmsPerc}%:</p>
+          <p style="margin: 5px 0; color: #dc2626;"><strong>ICMS pago atualmente:</strong> ${formatBRL(total)} × ${icmsPerc}% = ${formatBRL(icmsAtual)}</p>
+        </div>
+
+        <h2 style="font-size: 16px; color: #059669; margin: 20px 0 10px;">Cenário correto (VPo separado)</h2>
+        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+          <p style="margin: 5px 0;"><strong>Frete no CT-e:</strong> ${formatBRL(freteReal)}</p>
+          <p style="margin: 5px 0; color: #059669;"><strong>ICMS correto:</strong> ${formatBRL(freteReal)} × ${icmsPerc}% = ${formatBRL(icmsCorreto)}</p>
+        </div>
+
+        <!-- ECONOMIA DE IMPOSTO - MAIS COMPACTA -->
+        <h2 style="font-size: 16px; color: #059669; margin: 20px 0 10px;">Economia de imposto</h2>
+        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+          <p style="margin: 5px 0;"><strong>ICMS pago indevidamente sobre pedágio:</strong> ${formatBRL(icmsAtual)} – ${formatBRL(icmsCorreto)} = <strong style="font-size: 14px;">${formatBRL(ecoMensal)}</strong></p>
+          <p style="margin: 8px 0 0 0;"><strong>Economia mensal:</strong> ${formatBRL(ecoMensal)} &nbsp;|&nbsp; <strong>Economia anual:</strong> ${formatBRL(ecoAnual)}</p>
+        </div>
+
+        <h2 style="font-size: 16px; color: #059669; margin: 20px 0 10px;">Resumo da economia</h2>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px;">
+          <tr style="background: #f3f4f6;"><th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Item</th><th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Valor</th></tr>
+          <tr><td style="border: 1px solid #ddd; padding: 6px;">Valor mensal movimentado</td><td style="border: 1px solid #ddd; padding: 6px; text-align: right;">${formatBRL(total)}</td></tr>
+          <tr><td style="border: 1px solid #ddd; padding: 6px;">Pedágio estimado (${pedPerc}%)</td><td style="border: 1px solid #ddd; padding: 6px; text-align: right;">${formatBRL(pedValor)}</td></tr>
+          <tr><td style="border: 1px solid #ddd; padding: 6px;">ICMS pago indevidamente</td><td style="border: 1px solid #ddd; padding: 6px; text-align: right;">${formatBRL(ecoMensal)} / mês</td></tr>
+          <tr style="background: #d1fae5;"><td style="border: 1px solid #ddd; padding: 6px; font-weight: bold;">Economia anual</td><td style="border: 1px solid #ddd; padding: 6px; text-align: right; font-weight: bold;">${formatBRL(ecoAnual)}</td></tr>
+        </table>
+
+        <h2 style="font-size: 16px; color: #2563eb; margin: 20px 0 10px;">Simulação de Taxa de VPO</h2>
+        <div style="border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+          <p style="margin: 5px 0;"><strong>Valor do Frete:</strong> ${formatBRL(simFrete)} &nbsp;|&nbsp; <strong>Taxa de VPO:</strong> ${taxaPercent}%</p>
+          <p style="margin: 8px 0 0 0; font-size: 16px; font-weight: bold; color: #2563eb;"><strong>Taxa a Cobrar:</strong> ${formatBRL(taxaValor)}/mês &nbsp;|&nbsp; <strong>Valor Anual:</strong> ${formatBRL(taxaAnual)}</p>
+        </div>
+
+        <h2 style="font-size: 16px; color: #059669; margin: 20px 0 10px;">Benefícios adicionais além da economia</h2>
+        <p style="font-size: 12px; margin-bottom: 8px;">Ao separar o Vale-Pedágio Obrigatório (VPO), o embarcador também:</p>
+        <ul style="margin-left: 20px; margin-bottom: 20px; font-size: 12px;">
+          <li>✓ Fica 100% conforme a Lei do Vale-Pedágio (ANTT)</li>
+          <li>✓ Evita multas por pedágio embutido</li>
+          <li>✓ Ganha controle do custo de pedágio</li>
+          <li>✓ Evita pagar imposto sobre um custo operacional</li>
+        </ul>
+
+        <h2 style="font-size: 16px; color: #059669; margin: 20px 0 10px;">Dado interessante:</h2>
+        <div style="background: #f3f4f6; padding: 12px; border-radius: 8px; margin-bottom: 20px;">
+          <p style="margin: 0; font-size: 12px;">Empresas que movimentam ${formatBRL(total)}/mês em frete normalmente deixam de pagar entre <strong>${formatBRL(ecoAnual * 0.8)}</strong> e <strong>${formatBRL(ecoAnual * 1.2)}</strong> por ano em impostos apenas separando o pedágio do frete.</p>
+        </div>
+
+        <div style="font-size: 10px; color: #666; margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center;">
+          <p>Lei 10.209/2001 - Vale-Pedágio Obrigatório | Este relatório é uma simulação educacional. Consulte um especialista fiscal para implementação.</p>
+        </div>
+      `;
+
+      document.body.appendChild(pdfContent);
+      
+      const images = pdfContent.querySelectorAll('img');
+      await Promise.all(Array.from(images).map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      }));
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      try {
+        const canvas = await html2canvas(pdfContent, { 
+          scale: 2, 
+          backgroundColor: '#ffffff', 
+          logging: false,
+          useCORS: true,
+          allowTaint: false
+        });
+        
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const imgWidth = 210;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        
+        let heightLeft = imgHeight;
+        let position = 0;
+        
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        position -= pageHeight;
+        
+        while (heightLeft > 0) {
+          pdf.addPage();
+          pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+          heightLeft -= pageHeight;
+          position -= pageHeight;
+        }
+        
+        pdf.save(`relatorio-vpo-${empresaNome.replace(/\s+/g, '-').toLowerCase()}.pdf`);
+        pdfContent.remove();
+        return true;
+      } catch (error) {
+        alert('Erro: ' + error.message);
+        pdfContent.remove();
+        return false;
+      }
+    }
+
+    const modal = document.getElementById('modal-overlay');
+    const btn = document.getElementById('btn-relatorio');
+    const cancelar = document.getElementById('cancelar-pdf');
+    const confirmar = document.getElementById('confirmar-pdf');
+    const empresaInput = document.getElementById('empresa-nome');
+
+    btn.addEventListener('click', () => modal.classList.add('modal-active'));
+    cancelar.addEventListener('click', () => { modal.classList.remove('modal-active'); empresaInput.value = ''; });
+    confirmar.addEventListener('click', async () => {
+      const nome = empresaInput.value.trim();
+      if (!nome) { alert('Informe o nome da empresa'); return; }
+      modal.classList.remove('modal-active');
+      btn.disabled = true;
+      btn.innerHTML = 'Gerando PDF...';
+      await gerarPDFComLogos(nome);
+      btn.disabled = false;
+      btn.innerHTML = 'Baixar Relatório em PDF';
+      empresaInput.value = '';
+    });
+
+    document.querySelectorAll('input').forEach(i => {
+      if (!['input-frete', 'sim-frete', 'empresa-nome'].includes(i.id)) i.addEventListener('input', updateCalculations);
+    });
+    setupCurrencyInput('input-frete');
+    setupCurrencyInput('sim-frete');
+    updateCalculations();
+  </script>
+</body>
+</html>
