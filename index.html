@@ -130,7 +130,7 @@
       document.getElementById('icms-correto').textContent = formatBRL(icmsCorreto);
       document.getElementById('economia-mensal').textContent = formatBRL(ecoMensal);
       document.getElementById('economia-anual').textContent = formatBRL(ecoAnual);
-      document.getElementById('economia-percentual').textContent = ((ecoMensal/icmsAtual)*100).toFixed(2) + '%';
+      document.getElementById('economia-percentual').textContent = icmsPerc.toFixed(2) + '%';
       const simFrete = parseBRLtoFloat(document.getElementById('sim-frete').value);
       let simTaxa = document.getElementById('sim-taxa').value.replace(',', '.');
       const taxaPercent = parseFloat(simTaxa) || 0;
